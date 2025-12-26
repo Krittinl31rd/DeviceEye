@@ -1,0 +1,26 @@
+{
+  "devices": [
+    {
+      "ip": "127.0.0.1",
+      "port": 502,
+      "tags": [
+        {
+          "unitId": 1,
+          "fc": 3,
+          "start": 0,
+          "length": 10,
+          "interval": 1000,
+          "enabled": true
+        },
+        {
+          "unitId": 2,
+          "fc": 2,
+          "start": 0,
+          "length": 10,
+          "interval": 1000,
+          "enabled": true
+        }
+      ]
+    }
+  ]
+}

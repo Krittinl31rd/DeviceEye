@@ -1,0 +1,12 @@
+{
+  "type": "module",
+  "main": "electron/main.js",
+  "scripts": {
+    "dev": "concurrently \"npm run dev --prefix renderer\" \"electron .\"",
+    "build": "npm run build --prefix renderer"
+  },
+  "dependencies": {
+    "concurrently": "^9.2.1",
+    "electron": "^39.2.7"
+  }
+}
