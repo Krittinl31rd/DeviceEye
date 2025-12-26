@@ -1,1 +1,10 @@
 @import "tailwindcss";
+@plugin "daisyui";
+
+*:focus {
+  outline: none;
+}
+
+*:focus-within {
+  outline: none;
+}
