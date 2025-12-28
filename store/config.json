@@ -16,7 +16,7 @@
           "unitId": 2,
           "fc": 2,
           "start": 0,
-          "length": 10,
+          "length": 30,
           "interval": 1000,
           "enabled": true
         }

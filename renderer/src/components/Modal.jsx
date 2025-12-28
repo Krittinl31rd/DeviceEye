@@ -14,7 +14,7 @@ const Modal = ({ title, children, show, onClose, confirm }) => {
       {/* Modal content */}
       <div
         className="
-          relative z-50 w-full max-w-xl 
+          relative z-50 w-full max-w-lg 
           bg-base-300 rounded-lg shadow-xl 
           flex flex-col max-h-[90vh] overflow-hidden
         "
