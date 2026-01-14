@@ -4,3 +4,6 @@ npm install
 
 
 npm i concurrently electron
+
+
+npm install --save-dev wait-on

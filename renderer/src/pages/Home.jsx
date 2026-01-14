@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import Modal from "../components/Modal";
 import { toast } from "sonner";
 import FormAddDevice from "../components/FormAddDevice";
@@ -25,11 +25,20 @@ const Home = () => {
     console.log(formDevice);
   };
 
+  const startModbus = async () => {
+    const resp = await window.modbusAPI.start();
+    toast.success(resp?.status || "Modbus service started");
+  };
+
+  
+
   return (
     <div className="min-h-screen  flex flex-col items-start justify-start p-4 space-y-4">
       {/* header */}
       <div className="w-full flex items-center justify-end gap-2">
-        <button className="btn btn-sm btn-success">Start</button>
+        <button onClick={startModbus} className="btn btn-sm btn-success">
+          Start
+        </button>
         {/* <button className="btn btn-sm btn-error">Stop</button> */}
         <button
           onClick={() => setAddDevice(true)}

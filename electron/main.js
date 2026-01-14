@@ -32,8 +32,12 @@ app.whenReady().then(() => {
   // mainWindow.loadFile(path.join(__dirname, "../renderer/dist/index.html"));
 });
 
+app.on("window-all-closed", () => {
+  if (process.platform !== "darwin") app.quit();
+});
+
 ipcMain.handle("modbus:start", () => {
-  return startModbus(win);
+  return startModbus(mainWindow);
 });
 
 ipcMain.handle("modbus:stop", (_, ip) => {

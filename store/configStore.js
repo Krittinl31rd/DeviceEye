@@ -7,15 +7,15 @@ export function saveConfig(config) {
 }
 
 export function loadConfig() {
-  if (!fs.existsSync(FILE)) return { devices: [] }; // คืนค่า default
+  if (!fs.existsSync(FILE)) return { devices: [] }; 
   return JSON.parse(fs.readFileSync(FILE));
 }
 
 
 export function addConfig(data) {
   const config = loadConfig();
-  config.devices.push(data);   // เพิ่ม device
-  saveConfig(config);          // บันทึกกลับไฟล์
+  config.devices.push(data);  
+  saveConfig(config);   
   return config;
 }
 

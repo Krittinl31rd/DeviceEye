@@ -31,6 +31,32 @@ const CardDevices = () => {
     setFcView((prev) => ({ ...prev, [dIdx]: fc }));
   };
 
+  useEffect(() => {
+    window.modbusAPI.onChange((items) => {
+      const { ip, unitId, fc, start, data } = items;
+      setDevices((prevDevices) => {
+        return prevDevices.map((device) => {
+          if (device.ip != ip) return device;
+          const updatedTags = device.tags.map((tag) => {
+            if (tag.unitId != unitId || tag.fc != fc) return tag;
+            if (
+              start < tag.start ||
+              start + data.length > tag.start + tag.length
+            )
+              return tag;
+            const newValues = [...(tag.values || [])];
+            data.forEach((value, i) => {
+              newValues[start - tag.start + i] = value;
+            });
+            return { ...tag, values: newValues };
+          });
+          return { ...device, tags: updatedTags };
+        });
+      });
+      
+    });
+  }, []);
+
   return devices.map((device, dIdx) => {
     const availableFCs = [...new Set(device.tags.map((t) => t.fc))];
     const activeFC = fcView[dIdx] ?? availableFCs[0];

@@ -2,11 +2,16 @@
   "type": "module",
   "main": "electron/main.js",
   "scripts": {
-    "dev": "concurrently \"npm run dev --prefix renderer\" \"electron .\"",
+    "dev:renderer": "npm run dev --prefix renderer",
+    "dev:electron": "wait-on http://localhost:5173 && electron .",
+    "dev": "concurrently \"npm run dev:renderer\" \"npm run dev:electron\"",
     "build": "npm run build --prefix renderer"
   },
   "dependencies": {
     "concurrently": "^9.2.1",
     "electron": "^39.2.7"
+  },
+  "devDependencies": {
+    "wait-on": "^9.0.3"
   }
 }
