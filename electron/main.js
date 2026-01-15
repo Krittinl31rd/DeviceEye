@@ -2,10 +2,12 @@ import { app, BrowserWindow, ipcMain } from "electron";
 import path from "path";
 import { fileURLToPath } from "url";
 import {
-  addModbus,
-  removeModbus,
   startModbus,
   stopModbus,
+  addModbus,
+  removeModbus,
+  updateModbus,
+  writeModbus
 } from "../services/modbusService.js";
 import { loadConfig } from "../store/configStore.js";
 
@@ -36,12 +38,12 @@ app.on("window-all-closed", () => {
   if (process.platform !== "darwin") app.quit();
 });
 
-ipcMain.handle("modbus:start", () => {
+ipcMain.handle("modbus:start_all", () => {
   return startModbus(mainWindow);
 });
 
-ipcMain.handle("modbus:stop", (_, ip) => {
-  return stopModbus(ip);
+ipcMain.handle("modbus:stop_all", () => {
+  return stopModbus()
 });
 
 ipcMain.handle("modbus:config", () => {
@@ -54,4 +56,12 @@ ipcMain.handle("modbus:add_config", (_, data) => {
 
 ipcMain.handle("modbus:remove_config", (_, ip) => {
   return removeModbus(ip);
+});
+
+ipcMain.handle("modbus:update_config", (_, data) => {
+  return updateModbus(data);
+});
+
+ipcMain.handle("modbus:write", (_, payload) => {
+  return writeModbus(payload);
 });

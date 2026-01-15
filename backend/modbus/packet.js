@@ -35,7 +35,7 @@ export function buildWriteSingle(unitId, fc, addr, value) {
     return { tx, buf };
 }
 
-export function buildWriteMulti(unitId, start, values) {
+export function buildWriteMulti(unitId, fc, start, values) {
     const tx = nextTxId();
     const qty = values.length;
     const byteCount = qty * 2;
@@ -46,7 +46,7 @@ export function buildWriteMulti(unitId, start, values) {
     buf.writeUInt16BE(0, 2);
     buf.writeUInt16BE(7 + byteCount, 4);
     buf.writeUInt8(unitId, 6);
-    buf.writeUInt8(16, 7);           // FC 16
+    buf.writeUInt8(fc, 7);           // FC
     buf.writeUInt16BE(start, 8);
     buf.writeUInt16BE(qty, 10);
     buf.writeUInt8(byteCount, 12);

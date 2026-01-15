@@ -1,69 +1,148 @@
 import { DeviceManager } from "../backend/modbus/deviceManager.js";
-import { addConfig, loadConfig, removeConfig } from "../store/configStore.js";
+import { addConfig, loadConfig, removeConfig, updateConfig } from "../store/configStore.js";
 
 let manager = null;
 
+function ensureManager(mainWindow) {
+  if (!manager) {
+    manager = new DeviceManager({
+      onChange: changes => {
+        mainWindow.webContents.send("modbus:change", changes);
+      },
+      onStatus: status => {
+        mainWindow.webContents.send("modbus:status", status);
+      }
+    });
+  }
+}
+
 export function startModbus(mainWindow) {
-  if (manager) {
-    return { status: "already_running" };
+  ensureManager(mainWindow);
+
+  if (manager.running) {
+    return { running: manager?.running, status: "already_running" };
   }
 
-  manager = new DeviceManager({
-    onChange: (changes) => {
-      console.log(changes);
-      mainWindow.webContents.send("modbus:change", changes);
-    },
-  });
+  manager.loadDevices(loadConfig().devices);
+  manager.startAll();
 
-  const config = loadConfig();
-  config.devices.forEach((d) => manager.addDevice(d));
-
-  return { status: "started", devices: config.devices.length };
+  return { running: manager?.running, status: "started" };
 }
 
-export function stopModbus(ip) {
-  if (!manager) return { status: "not_running" };
+export function stopModbus() {
+  if (!manager || !manager.running) {
+    return { running: manager?.running, status: "already_stopped" };
+  }
 
-  manager.removeDevice(ip);
-  manager = null;
-  return { status: "stopped" };
+  manager.stopAll();
+  return { running: manager?.running, status: "stopped" };
 }
 
-export function addModbus(data) {
-  addConfig(data);
-  if (!manager) return { status: "not_running" };
-  manager.addDevice(data);
-  return { status: "started", message: `add ${data.ip} success` };
+
+export function addModbus(device) {
+  if (manager?.running) {
+    return {
+      running: manager.running,
+      status: "blocked",
+      message: "Stop Modbus before adding device"
+    };
+  }
+
+  const isSuccess = addConfig(device);
+  if (!isSuccess) return { status: "warning", message: "this device is already" };
+
+  return { status: "saved", message: "adding device success" };
 }
 
 export function removeModbus(ip) {
-  const dev = removeConfig(ip);
-  if (!manager) return { status: "not_running", dev };
-  manager.removeDevice(ip);
-  return { status: "started", message: `remove ${data.ip} success` };
+  if (manager?.running) {
+    return {
+      running: manager.running,
+      status: "blocked",
+      message: "Stop Modbus before removing device"
+    };
+  }
+
+  const isSuccess = removeConfig(ip);
+  if (!isSuccess) return { status: "warning", message: "not found device this ip" };
+
+  return { status: "saved", message: "deleting device success" };
 }
 
-// {
-//       "ip": "127.0.0.1",
-//       "port": 502,
-//       "tags": [
-//         {
-//           "id": "Control-Devices",
-//           "unitId": 1,
-//           "fc": 3,
-//           "start": 0,
-//           "length": 100,
-//           "interval": 1000,
-//           "enabled": true
-//         },
-//         {
-//           "id": "Meter",
-//           "unitId": 2,
-//           "fc": 2,
-//           "start": 0,
-//           "length": 10,
-//           "interval": 1000,
-//           "enabled": true
-//         }
-//       ]
-//     }
+export function updateModbus(device) {
+  if (manager?.running) {
+    return {
+      status: "blocked",
+      message: "Stop Modbus before editing device"
+    };
+  }
+
+  const isSuccess = updateConfig(device);
+  if (!isSuccess) return { status: "warning", message: "not found device this ip" };
+
+  return { status: "saved", message: "updating device success" };
+}
+
+
+export async function writeModbus(payload) {
+
+  if (!manager || !manager.running) {
+    throw new Error("Modbus is not running");
+  }
+
+  const { ip, unitId, fc } = payload;
+
+  const device = manager.devices.get(ip);
+  if (!device) {
+    throw new Error("Device not found");
+  }
+
+  const client = device.client;
+
+  switch (fc) {
+    // Write Single Coil
+    case 5:
+      await client.writeSingle(
+        unitId,
+        5,
+        payload.address,
+        payload.value ? 1 : 0
+      );
+      break;
+
+    // Write Single Holding Register
+    case 6:
+      await client.writeSingle(
+        unitId,
+        6,
+        payload.address,
+        Number(payload.value)
+      );
+      break;
+
+    // Write Multiple Coil
+    case 15:
+      await client.writeMulti(
+        unitId,
+        15,
+        payload.start,
+        payload.values
+      );
+      break;
+
+    // Write Multiple Holding Registers
+    case 16:
+      await client.writeMulti(
+        unitId,
+        16,
+        payload.start,
+        payload.values.map(Number)
+      );
+      break;
+
+    default:
+      throw new Error(`FC ${fc} is not writable`);
+  }
+
+  return { success: true, status: "ok", message: `Write ID ${unitId} | FC ${fc} | Addr ${payload.address} | Value ${payload.value}` };
+}

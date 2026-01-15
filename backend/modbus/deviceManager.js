@@ -1,50 +1,73 @@
 import { ModbusClient } from "./client.js";
 import { PollingScheduler } from "./scheduler.js";
 
-
 export class DeviceManager {
-  constructor({ onChange } = {}) {
+  constructor({ onChange, onStatus } = {}) {
     this.devices = new Map();
+    this.status = new Map();
     this.onChange = onChange;
+    this.onStatus = onStatus;
+    this.running = false;
   }
 
-  addDevice(device) {
-    console.log('[DEVICE] ADD', device.ip);
-    const client = new ModbusClient(device.ip, device.port);
-    const scheduler = new PollingScheduler(client, device.ip);
+  loadDevices(devices) {
+    if (this.running) {
+      throw new Error("Cannot modify devices while running");
+    }
 
-    device.tags.forEach(tag => {
-      scheduler.addTag({
-        ...tag,
-        onRead: ({ data, ts }) => {
-          if (data.length > 0) {
-            const changes = {
-              ip: device.ip,
-              unitId: tag.unitId,
-              fc: tag.fc,
-              start: tag.start,
-              data,
-              ts
-            }
-            // console.log('[CHANGE]', changes);
-            this.onChange?.(changes);
-            //  broadcast WS / save DB
-          }
-        },
+    this.devices.forEach(d => d.scheduler.stop());
+    this.devices.clear();
 
-        onError: (err) => {
-          console.error('[ERROR]', tag.id, err);
-        }
+    devices.forEach(device => {
+      const client = new ModbusClient(device.ip, device.port);
+
+      client.on('state', status => {
+        this.status.set(device.ip, status);
+        this.onStatus?.(status);
       });
-    });
 
-    scheduler.start();
-    this.devices.set(device.ip, { client, scheduler });
+      const scheduler = new PollingScheduler(client, device.ip);
+
+      device.tags.forEach(tag => {
+        scheduler.addTag({
+          ...tag,
+          onRead: ({ data, ts }) => {
+            if (data.length > 0) {
+              this.onChange?.({
+                ip: device.ip,
+                unitId: tag.unitId,
+                fc: tag.fc,
+                start: tag.start,
+                data,
+                ts
+              });
+            }
+          }
+        });
+      });
+
+      this.devices.set(device.ip, { client, scheduler });
+    });
   }
 
-  removeDevice(ip) {
-    const d = this.devices.get(ip);
-    d?.scheduler.stop();
-    this.devices.delete(ip);
+  getStatus(ip) {
+    return this.status.get(ip);
+  }
+
+  startAll() {
+    if (this.running) return;
+
+    this.devices.forEach(d => d.scheduler.start());
+    this.running = true;
+    console.log("[MODBUS] START");
+  }
+
+  stopAll() {
+    if (!this.running) return;
+
+    this.devices.forEach(d => d.scheduler.stop());
+    this.running = false;
+    console.log("[MODBUS] STOP");
   }
 }
+

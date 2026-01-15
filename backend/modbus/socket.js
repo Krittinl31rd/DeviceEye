@@ -6,22 +6,24 @@ export class ModbusSocket extends EventEmitter {
     super();
     this.ip = ip;
     this.port = port;
-
     this.socket = null;
     this.state = 'IDLE'; // IDLE | CONNECTING | CONNECTED
     this.retryMs = 2000;
   }
 
   connect() {
-    if (this.state !== 'IDLE') return;
+    if (this.state != 'IDLE') return;
 
     this.state = 'CONNECTING';
+    this.emit('state', this.state);
+
     this.socket = new net.Socket();
 
     this.socket.connect(this.port, this.ip, () => {
       this.state = 'CONNECTED';
-      console.log('[MODBUS] CONNECT', this.ip);
+      this.emit('state', this.state);
       this.emit('connect');
+      console.log('[MODBUS] CONNECT', this.ip);
     });
 
     this.socket.on('data', data => {
@@ -29,16 +31,20 @@ export class ModbusSocket extends EventEmitter {
     });
 
     this.socket.on('close', () => {
-      console.warn('[MODBUS] CLOSE', this.ip);
-      this.cleanup();
-      this.scheduleReconnect();
+      this.handleDisconnect('CLOSE');
     });
 
     this.socket.on('error', err => {
       console.error('[MODBUS] ERROR', this.ip, err.code);
-      this.cleanup();
-      this.scheduleReconnect();
+      this.handleDisconnect('ERROR');
     });
+  }
+
+  handleDisconnect(reason) {
+    this.state = 'ERROR';
+    this.emit('state', this.state, reason);
+    this.cleanup();
+    this.scheduleReconnect();
   }
 
   cleanup() {
@@ -55,7 +61,7 @@ export class ModbusSocket extends EventEmitter {
   }
 
   write(buffer) {
-    if (this.state === 'CONNECTED') {
+    if (this.state == 'CONNECTED') {
       this.socket.write(buffer);
     }
   }

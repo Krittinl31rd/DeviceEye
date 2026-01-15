@@ -13,10 +13,10 @@
           "enabled": true
         },
         {
-          "unitId": 2,
-          "fc": 2,
+          "unitId": 1,
+          "fc": 1,
           "start": 0,
-          "length": 30,
+          "length": 10,
           "interval": 1000,
           "enabled": true
         }
