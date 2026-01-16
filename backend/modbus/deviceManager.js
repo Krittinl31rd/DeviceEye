@@ -2,12 +2,13 @@ import { ModbusClient } from "./client.js";
 import { PollingScheduler } from "./scheduler.js";
 
 export class DeviceManager {
-  constructor({ onChange, onStatus } = {}) {
+  constructor({ onChange, onStatus, socket } = {}) {
     this.devices = new Map();
     this.status = new Map();
     this.onChange = onChange;
     this.onStatus = onStatus;
     this.running = false;
+    this.socket = socket;
   }
 
   loadDevices(devices) {
@@ -21,10 +22,16 @@ export class DeviceManager {
     devices.forEach(device => {
       const client = new ModbusClient(device.ip, device.port);
 
-      client.on('state', status => {
-        this.status.set(device.ip, status);
-        this.onStatus?.(status);
+      client.on("state", status => {
+        const payload = {
+          ip: device.ip,
+          ...status
+        };
+        this.status.set(device.ip, payload);
+        this.onStatus?.(payload);
+        this.socket?.send("modbus:status", payload);
       });
+
 
       const scheduler = new PollingScheduler(client, device.ip);
 
@@ -33,14 +40,16 @@ export class DeviceManager {
           ...tag,
           onRead: ({ data, ts }) => {
             if (data.length > 0) {
-              this.onChange?.({
+              const payload = {
                 ip: device.ip,
                 unitId: tag.unitId,
                 fc: tag.fc,
                 start: tag.start,
                 data,
                 ts
-              });
+              }
+              this.onChange?.(payload);
+              this.socket?.send("modbus:data", payload);
             }
           }
         });
@@ -66,8 +75,11 @@ export class DeviceManager {
     if (!this.running) return;
 
     this.devices.forEach(d => d.scheduler.stop());
+    this.status.clear();
     this.running = false;
+
     console.log("[MODBUS] STOP");
   }
+
 }
 

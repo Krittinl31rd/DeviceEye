@@ -16,4 +16,14 @@ contextBridge.exposeInMainWorld("modbusAPI", {
   removeConfig: (ip) => ipcRenderer.invoke("modbus:remove_config", ip),
   updateConfig: (data) => ipcRenderer.invoke("modbus:update_config", data),
 
+
+
+});
+
+contextBridge.exposeInMainWorld("socketAPI", {
+  getSocket: () => ipcRenderer.invoke("socket:config"),
+  saveSocket: (payload) => ipcRenderer.invoke("socket:save", payload),
+  onStatus: (callback) => {
+    ipcRenderer.on("socket:status", (_, data) => callback(data));
+  },
 });

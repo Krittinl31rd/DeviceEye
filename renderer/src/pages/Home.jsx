@@ -3,6 +3,8 @@ import Modal from "../components/Modal";
 import { toast } from "sonner";
 import FormAddDevice from "../components/FormAddDevice";
 import CardDevices from "../components/CardDevices";
+import SocketSetting from "../components/SocketSetting";
+import { EllipsisVertical, Pause, Play, Plus } from "lucide-react";
 
 const Home = () => {
   const [running, setRunning] = useState(false);
@@ -24,6 +26,47 @@ const Home = () => {
       },
     ],
   });
+  const [configScoket, setConfigScoket] = useState(false);
+  const [statusSocket, setStatusSocket] = useState({ state: "disconnected", url: "" });
+  const [cfg, setCfg] = useState({
+    enabled: false,
+    url: "",
+    token: "",
+  });
+
+  const getSocket = async () => {
+    const data = await window.socketAPI.getSocket();
+    setCfg(data);
+  };
+
+  const saveSocket = async () => {
+    if (running) {
+      toast.warning("Please stop Modbus before editing socket settings");
+      return;
+    }
+
+    const { status, message } = await window.socketAPI.saveSocket(cfg);
+
+    if (status == "saved") {
+      toast.success(" Socket config saved (will apply on next START)");
+      setConfigScoket(false);
+    }
+  };
+
+  useEffect(() => {
+    getSocket();
+  }, []);
+
+  useEffect(() => {
+    const unsubscribe = window.socketAPI?.onStatus?.((data) => {
+      // { state: 'connected', url: 'http://localhost:3000' }
+      setStatusSocket(data);
+    });
+
+    return () => {
+      unsubscribe?.();
+    };
+  }, []);
 
   const getConfig = async () => {
     const res = await window.modbusAPI.getConfig();
@@ -85,7 +128,7 @@ const Home = () => {
       <div className="w-full flex items-center justify-end gap-2">
         <label className="label">Polling:</label>
         <div
-          className={`badge badge-soft ${
+          className={`badge badge-soft font-semibold ${
             running ? "badge-success" : "badge-error"
           }`}
         >
@@ -96,25 +139,43 @@ const Home = () => {
           onClick={startModbus}
           className="btn btn-sm btn-success"
         >
-          Start
+          <Play className="w-4 h-4" /> Start
         </button>
         <button
           disabled={!running}
           onClick={stopAllModbus}
           className="btn btn-sm btn-error"
         >
-          Stop
+          <Pause className="w-4 h4-" /> Stop
         </button>
         <button
           disabled={running}
           onClick={() => setAddDevice(true)}
           className="btn btn-sm btn-primary"
         >
-          Add Device
+          <Plus className="w-4 h-4" /> Add Device
+        </button>
+      </div>
+      <div className="w-full flex items-center justify-end gap-2">
+        <label className="label">Socket {statusSocket.url} :</label>
+        <div
+          className={`badge badge-soft font-semibold ${
+            statusSocket.state == "connected" ? "badge-success" : "badge-error"
+          }`}
+        >
+          {statusSocket.state}
+        </div>
+
+        <button
+          disabled={running}
+          onClick={() => setConfigScoket(true)}
+          className="btn btn-sm btn-neutral"
+        >
+          <EllipsisVertical className="w-4 h-4" /> Socket
         </button>
       </div>
       {/* device */}
-      <div className="w-full grid grid-cols-1 md:grid-cols-1 xl:grid-cols-3 gap-4">
+      <div className="w-full grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-4">
         <CardDevices
           running={running}
           devices={devices}
@@ -138,6 +199,16 @@ const Home = () => {
             formDevice={formDevice}
             setFormDevice={setFormDevice}
           />
+        </Modal>
+      )}
+      {configScoket && (
+        <Modal
+          title={`Socket.io Settings`}
+          show={configScoket}
+          onClose={() => setConfigScoket(false)}
+          confirm={saveSocket}
+        >
+          <SocketSetting modbusRunning={running} cfg={cfg} setCfg={setCfg} />
         </Modal>
       )}
     </div>

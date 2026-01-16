@@ -1,11 +1,24 @@
 import { DeviceManager } from "../backend/modbus/deviceManager.js";
 import { addConfig, loadConfig, removeConfig, updateConfig } from "../store/configStore.js";
+import { OutboundSocket } from "./socketClient.js";
+import { loadSocketConfig } from "../store/socketConfig.js";
 
 let manager = null;
+let outbound = null;
 
 function ensureManager(mainWindow) {
+  if (!outbound) {
+    outbound = new OutboundSocket({
+      onStatus: status => {
+        mainWindow.webContents.send("socket:status", status);
+      }
+    });
+    outbound.connect(loadSocketConfig());
+  }
+
   if (!manager) {
     manager = new DeviceManager({
+      socket: outbound,
       onChange: changes => {
         mainWindow.webContents.send("modbus:change", changes);
       },
@@ -14,6 +27,7 @@ function ensureManager(mainWindow) {
       }
     });
   }
+
 }
 
 export function startModbus(mainWindow) {
@@ -22,6 +36,8 @@ export function startModbus(mainWindow) {
   if (manager.running) {
     return { running: manager?.running, status: "already_running" };
   }
+
+  outbound?.connect(loadSocketConfig());
 
   manager.loadDevices(loadConfig().devices);
   manager.startAll();
@@ -37,6 +53,12 @@ export function stopModbus() {
   manager.stopAll();
   return { running: manager?.running, status: "stopped" };
 }
+
+export function stopSocket() {
+  outbound?.disconnect();
+  outbound = null;
+}
+
 
 
 export function addModbus(device) {
@@ -91,6 +113,8 @@ export async function writeModbus(payload) {
   }
 
   const { ip, unitId, fc } = payload;
+  const address = payload.address ?? payload.start;
+
 
   const device = manager.devices.get(ip);
   if (!device) {
@@ -105,7 +129,7 @@ export async function writeModbus(payload) {
       await client.writeSingle(
         unitId,
         5,
-        payload.address,
+        address,
         payload.value ? 1 : 0
       );
       break;
@@ -115,7 +139,7 @@ export async function writeModbus(payload) {
       await client.writeSingle(
         unitId,
         6,
-        payload.address,
+        address,
         Number(payload.value)
       );
       break;
@@ -125,7 +149,7 @@ export async function writeModbus(payload) {
       await client.writeMulti(
         unitId,
         15,
-        payload.start,
+        address,
         payload.values
       );
       break;
@@ -135,7 +159,7 @@ export async function writeModbus(payload) {
       await client.writeMulti(
         unitId,
         16,
-        payload.start,
+        address,
         payload.values.map(Number)
       );
       break;

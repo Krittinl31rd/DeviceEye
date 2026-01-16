@@ -4,45 +4,12 @@ import Modal from "./Modal";
 import FormUpdateDevice from "./FormUpdateDevice";
 import WirteRegister from "./WirteRegister";
 import { toast } from "sonner";
-
-const STATUS_COLOR = {
-  CONNECTED: "text-green-500",
-  CONNECTING: "text-yellow-500",
-  ERROR: "text-red-500",
-};
-
-const STATUS_LABEL = {
-  CONNECTED: "ONLINE",
-  CONNECTING: "CONNECTING",
-  ERROR: "OFFLINE",
-};
-
-const FC_LIST = [
-  { id: 1, label: "CS" },
-  { id: 2, label: "IS" },
-  { id: 3, label: "HR" },
-  { id: 4, label: "IR" },
-];
-
-const FC_NAME = {
-  1: "Coils Status",
-  2: "Input Status",
-  3: "Holding Register",
-  4: "Input Register",
-};
-
-const canWriteFC = (fc) => fc === 1 || fc === 3;
-
-const inputTypeByFC = (fc) => {
-  if (fc === 1) return "boolean";
-  if (fc === 3) return "number";
-  return "readonly";
-};
+import { STATUS_COLOR, STATUS_LABEL, FC_LIST, FC_NAME } from "../utils/enum";
+import { getWriteFC } from "../utils/helper";
 
 const CardDevices = ({
   running,
   devices,
-  setDevices,
   delDeviceConfig,
   delDevice,
   setDelDevice,
@@ -50,110 +17,72 @@ const CardDevices = ({
   setUpdateDevice,
   updateDeviceConfig,
 }) => {
+  const [runtimeValues, setRuntimeValues] = useState({});
   const [deviceStatus, setDeviceStatus] = useState({});
   const [selectDevice, setSelectDevice] = useState(null);
   const [unitView, setUnitView] = useState({});
   const [fcView, setFcView] = useState({});
-  const [formDevice, setFormDevice] = useState(selectDevice);
-  const [editCell, setEditCell] = useState(null); // { ip, unitId, fc, address, value }
   const [writeModal, setWriteModal] = useState(null);
 
-  const setUnit = (dIdx, unitId) => {
-    setUnitView((prev) => ({ ...prev, [dIdx]: unitId }));
+  const getRuntimeValue = (ip, unitId, fc, address) => {
+    const unitData = runtimeValues?.[ip]?.[unitId];
+    if (!unitData) return "--";
+    if (unitData[fc]?.[address] !== undefined) {
+      return unitData[fc][address];
+    }
+    const fallbackFC = Object.values(unitData).find(
+      (d) => d?.[address] !== undefined
+    );
+    return fallbackFC?.[address] ?? "--";
   };
 
-  const setFC = (dIdx, unitId, fc) => {
-    setFcView((prev) => ({
-      ...prev,
-      [dIdx]: {
-        ...(prev[dIdx] || {}),
-        [unitId]: fc,
-      },
-    }));
-  };
-
-  const setWrite = ({ activeFC, device, row, activeUnit }) => {
-    const readFC = activeFC;
-    const writeFC = readFC == 1 ? 5 : readFC == 3 ? 6 : null;
-
+  const handleWriteOpen = ({ device, unitId, fc, address, value }) => {
+    const writeFC = getWriteFC(fc);
     if (!writeFC) return;
 
     setWriteModal({
       ip: device.ip,
-      unitId: activeUnit,
-      readFc: readFC,
+      unitId,
+      readFc: fc,
       fc: writeFC,
-      address: row.addr,
-      value: row.value ?? 0,
+      address,
+      value: value ?? 0,
     });
   };
 
-  const handleWrite = async () => {
+  const handleWriteConfirm = async () => {
     const { success, message } = await window.modbusAPI.writeModbus(writeModal);
-    if (success) {
-      toast.success(message);
-    }
+
+    if (success) toast.success(message);
     setWriteModal(null);
   };
 
   useEffect(() => {
-    setFormDevice(selectDevice);
-  }, [selectDevice]);
-
-  useEffect(() => {
-    const unsubscribe = window.modbusAPI?.onStatus?.((status) => {
-      const { ip, state, reason } = status;
-
+    return window.modbusAPI?.onStatus?.(({ ip, state, reason }) => {
       setDeviceStatus((prev) => ({
         ...prev,
         [ip]: { state, reason },
       }));
     });
-
-    return () => {
-      unsubscribe?.();
-    };
   }, []);
 
   useEffect(() => {
     if (!running) return setDeviceStatus({});
-
-    const unsubscribe = window.modbusAPI.onChange((items) => {
-      const { ip, unitId, fc, start, data } = items;
-
-      setDevices((prevDevices) =>
-        prevDevices.map((device) => {
-          if (device.ip != ip) return device;
-
-          const updatedTags = device.tags.map((tag) => {
-            if (tag.unitId != unitId || tag.fc != fc) return tag;
-
-            if (
-              start < tag.start ||
-              start + data.length > tag.start + tag.length
-            )
-              return tag;
-
-            const newValues = [...(tag.values || [])];
-
-            data.forEach((item) => {
-              const idx = item.address - tag.start;
-              if (idx >= 0 && idx < tag.length) {
-                newValues[idx] = item.value;
-              }
-            });
-
-            return { ...tag, values: newValues };
-          });
-
-          return { ...device, tags: updatedTags };
-        })
-      );
+    return window.modbusAPI?.onChange?.(({ ip, unitId, fc, data }) => {
+      setRuntimeValues((prev) => ({
+        ...prev,
+        [ip]: {
+          ...(prev[ip] || {}),
+          [unitId]: {
+            ...(prev[ip]?.[unitId] || {}),
+            [fc]: {
+              ...(prev[ip]?.[unitId]?.[fc] || {}),
+              ...Object.fromEntries(data.map((d) => [d.address, d.value])),
+            },
+          },
+        },
+      }));
     });
-
-    return () => {
-      unsubscribe?.();
-    };
   }, [running]);
 
   if (!devices.length) {
@@ -167,13 +96,15 @@ const CardDevices = ({
   return devices.map((device, dIdx) => {
     const unitIds = [...new Set(device.tags.map((t) => t.unitId))];
     const activeUnit = unitView[dIdx] ?? unitIds[0];
-    const activeFC =
-      fcView[dIdx]?.[activeUnit] ??
-      [
-        ...new Set(
-          device.tags.filter((t) => t.unitId == activeUnit).map((t) => t.fc)
-        ),
-      ][0];
+
+    const fcList = [
+      ...new Set(
+        device.tags.filter((t) => t.unitId === activeUnit).map((t) => t.fc)
+      ),
+    ];
+
+    const activeFC = fcView[dIdx]?.[activeUnit] ?? fcList[0];
+
     const unitTags = device.tags.filter(
       (t) => t.unitId == activeUnit && t.fc == activeFC
     );
@@ -181,181 +112,164 @@ const CardDevices = ({
     const isOffline = deviceStatus[device.ip]?.state != "CONNECTED";
 
     return (
-      <div key={dIdx} className="w-full card bg-base-300 p-2 shadow-2xl">
-        <div className="card-body p-0 space-y-0">
-          {/* Header */}
-          <div className="flex justify-between items-center">
-            <h2 className="font-semibold text-base flex items-center gap-2">
-              {device.ip}:{device.port}
-              {deviceStatus[device.ip] && (
-                <span
-                  className={`text-xs font-semibold ${
-                    STATUS_COLOR[deviceStatus[device.ip].state]
-                  }`}
-                >
-                  ● {STATUS_LABEL[deviceStatus[device.ip].state]}
-                </span>
-              )}
-            </h2>
-
-            <div className="flex items-center gap-2">
-              <button
-                disabled={running}
-                onClick={() => {
-                  setUpdateDevice(true);
-                  setSelectDevice(device);
-                }}
-                className="btn btn-xs btn-warning"
+      <div
+        key={device.ip}
+        className="card bg-base-300 p-2 shadow-2xl space-y-2"
+      >
+        {/* ================= HEADER ================= */}
+        <div className="flex justify-between items-center mb-1">
+          <h2 className="font-semibold flex items-center gap-2">
+            {device.ip}:{device.port}
+            {deviceStatus[device.ip] && (
+              <span
+                className={`text-xs ${
+                  STATUS_COLOR[deviceStatus[device.ip].state]
+                }`}
               >
-                <PencilLine className="w-4 h-4" />
-              </button>
-              <button
-                disabled={running}
-                onClick={() => {
-                  setDelDevice(true);
-                  setSelectDevice(device);
-                }}
-                className="btn btn-xs btn-error"
-              >
-                <Trash2 className="w-4 h-4" />
-              </button>
-            </div>
-          </div>
+                ● {STATUS_LABEL[deviceStatus[device.ip].state]}
+              </span>
+            )}
+          </h2>
 
-          {/* Unit Selector */}
-          <div className="flex gap-4 text-sm">
-            {unitIds.map((uid) => (
-              <label
-                key={uid}
-                className="flex items-center gap-1 cursor-pointer opacity-80 hover:opacity-100"
-              >
-                <input
-                  type="radio"
-                  name={`unit-${dIdx}`}
-                  className="radio radio-xs"
-                  checked={activeUnit == uid}
-                  onChange={() => setUnit(dIdx, uid)}
-                />
-                <span>ID {uid}</span>
-              </label>
-            ))}
-          </div>
-
-          {/* FC Selector */}
-          <div className="flex gap-3 text-xs mt-1">
-            {[
-              ...new Set(
-                device.tags
-                  .filter((t) => t.unitId == activeUnit)
-                  .map((t) => t.fc)
-              ),
-            ].map((fc) => (
-              <label
-                key={fc}
-                className="flex items-center gap-1 cursor-pointer opacity-80 hover:opacity-100"
-              >
-                <input
-                  type="radio"
-                  name={`fc-${dIdx}-${activeUnit}`}
-                  className="radio radio-xs"
-                  checked={activeFC == fc}
-                  onChange={() => setFC(dIdx, activeUnit, fc)}
-                />
-                <span>
-                  FC {fc} ({FC_LIST.find((f) => f.id == fc)?.label})
-                </span>
-              </label>
-            ))}
-          </div>
-
-          <div
-            className={`bg-base-200 rounded-md overflow-hidden mb-3 ${
-              isOffline ? "opacity-40" : ""
-            }`}
-          >
-            <div className="px-3 py-1 text-xs font-semibold text-gray-600 bg-base-300">
-              Unit {activeUnit} | FC {activeFC} – {FC_NAME[activeFC]}
-            </div>
-
-            <div className="text-xs font-mono max-h-56 overflow-auto">
-              <div className="grid grid-cols-2 px-3 py-1 text-gray-500 sticky top-0 bg-base-200">
-                <span>Addr</span>
-                <span>Value</span>
-              </div>
-
-              {unitTags
-                .flatMap((tag) =>
-                  Array.from({ length: tag.length }).map((_, i) => ({
-                    addr: Number(tag.start) + i,
-                    value:
-                      Array.isArray(tag.values) && tag.values[i] != undefined
-                        ? tag.values[i]
-                        : "--",
-                    enabled: tag.enabled,
-                  }))
-                )
-                .map((row, i) => (
-                  <div
-                    key={i}
-                    className={`grid grid-cols-2 px-3 py-1 ${
-                      i % 2 == 0 ? "bg-base-200" : "bg-base-100"
-                    } ${row.enabled ? "" : "opacity-40"}`}
-                  >
-                    <span>{row.addr}</span>
-                    <span
-                      className={`cursor-pointer ${
-                        row.enabled && (activeFC === 1 || activeFC === 3)
-                          ? "text-blue-400 underline"
-                          : "opacity-50"
-                      }`}
-                      onClick={() =>
-                        setWrite({ activeFC, device, row, activeUnit })
-                      }
-                    >
-                      {row.value}
-                    </span>
-                  </div>
-                ))}
-            </div>
+          <div className="flex gap-2">
+            <button
+              disabled={running}
+              className="btn btn-xs btn-warning"
+              onClick={() => {
+                setSelectDevice(structuredClone(device));
+                setUpdateDevice(true);
+              }}
+            >
+              <PencilLine size={14} />
+            </button>
+            <button
+              disabled={running}
+              className="btn btn-xs btn-error"
+              onClick={() => {
+                setSelectDevice(device);
+                setDelDevice(true);
+              }}
+            >
+              <Trash2 size={14} />
+            </button>
           </div>
         </div>
+
+        {/* ================= UNIT ================= */}
+        <div className="flex gap-3 text-sm">
+          {unitIds.map((uid) => (
+            <label key={uid} className="flex gap-1 cursor-pointer">
+              <input
+                type="radio"
+                className="radio radio-xs"
+                checked={activeUnit === uid}
+                onChange={() => setUnitView((v) => ({ ...v, [dIdx]: uid }))}
+              />
+              ID {uid}
+            </label>
+          ))}
+        </div>
+
+        {/* ================= FC ================= */}
+        <div className="flex gap-3 text-xs my-1">
+          {fcList.map((fc) => (
+            <label key={fc} className="flex gap-1 cursor-pointer">
+              <input
+                type="radio"
+                className="radio radio-xs"
+                checked={activeFC === fc}
+                onChange={() =>
+                  setFcView((v) => ({
+                    ...v,
+                    [dIdx]: { ...(v[dIdx] || {}), [activeUnit]: fc },
+                  }))
+                }
+              />
+              FC {fc} ({FC_LIST.find((f) => f.id === fc)?.label})
+            </label>
+          ))}
+        </div>
+
+        {/* ================= TABLE ================= */}
+        <div className={`bg-base-200 rounded ${isOffline && "opacity-40"}`}>
+          <div className="px-3 py-1 text-xs font-semibold bg-base-300">
+            Unit {activeUnit} | FC {activeFC} – {FC_NAME[activeFC]}
+          </div>
+
+          <div className="text-xs font-mono max-h-56 overflow-auto space-y-0.5">
+            <div className="grid grid-cols-2 px-4 py-2 text-gray-500 sticky top-0 bg-base-100">
+              <span>Addr</span>
+              <span className="text-center">Value</span>
+            </div>
+            {unitTags.flatMap((tag) =>
+              Array.from({ length: tag.length }).map((_, i) => {
+                const addr = Number(tag.start) + i;
+                const value = getRuntimeValue(
+                  device.ip,
+                  activeUnit,
+                  activeFC,
+                  addr
+                );
+                const isEven = i % 2 == 0;
+                return (
+                  <div
+                    key={`${tag.unitId}-${tag.fc}-${addr}`}
+                    className={`grid grid-cols-2 px-4 py-2 odd:bg-base-200 cursor-pointer ${
+                      isEven ? "bg-base-200" : "bg-base-100"
+                    } hover:bg-primary/10 transition`}
+                    onClick={() =>
+                      handleWriteOpen({
+                        device,
+                        unitId: activeUnit,
+                        fc: activeFC,
+                        address: addr,
+                        value,
+                      })
+                    }
+                  >
+                    <span>{addr}</span>
+                    <span className="text-blue-400 text-center ">{value}</span>
+                  </div>
+                );
+              })
+            )}
+          </div>
+        </div>
+
+        {/* ================= MODALS ================= */}
         {delDevice && (
           <Modal
-            title={`Delete Devices ${selectDevice?.ip}`}
-            show={delDevice}
+            title={`Delete ${selectDevice?.ip}`}
+            show
             onClose={() => setDelDevice(false)}
-            confirm={() => delDeviceConfig(selectDevice?.ip)}
+            confirm={() => delDeviceConfig(selectDevice.ip)}
           >
-            <p className="opacity-70">
-              Are you sure delete device <b>{selectDevice?.ip}</b>
-            </p>
+            Confirm delete device?
           </Modal>
         )}
+
         {updateDevice && (
           <Modal
-            title={`Update Devices ${selectDevice?.ip}`}
-            show={updateDevice}
+            title={`Update ${selectDevice?.ip}`}
+            show
             onClose={() => setUpdateDevice(false)}
-            confirm={() => updateDeviceConfig(formDevice)}
+            confirm={() => updateDeviceConfig(selectDevice)}
           >
             <FormUpdateDevice
-              formDevice={formDevice}
-              setFormDevice={setFormDevice}
+              formDevice={selectDevice}
+              setFormDevice={setSelectDevice}
             />
           </Modal>
         )}
 
         {writeModal && running && (
           <Modal
-            title="Write Modbus Value"
-            show={true}
+            title="Write Modbus"
+            show
             onClose={() => setWriteModal(null)}
-            confirm={handleWrite}
+            confirm={handleWriteConfirm}
           >
-            <WirteRegister
-              data={writeModal}
-              onConfirm={(val) => setWriteModal(val)}
-            />
+            <WirteRegister data={writeModal} onConfirm={setWriteModal} />
           </Modal>
         )}
       </div>

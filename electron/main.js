@@ -10,6 +10,7 @@ import {
   writeModbus
 } from "../services/modbusService.js";
 import { loadConfig } from "../store/configStore.js";
+import { loadSocketConfig, saveSocketConfig } from "../store/socketConfig.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -65,3 +66,12 @@ ipcMain.handle("modbus:update_config", (_, data) => {
 ipcMain.handle("modbus:write", (_, payload) => {
   return writeModbus(payload);
 });
+
+
+ipcMain.handle("socket:config", () => {
+  return loadSocketConfig();
+});
+
+ipcMain.handle("socket:save", (_, payload) => {
+  return saveSocketConfig(payload);
+})
