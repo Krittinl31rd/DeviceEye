@@ -1,7 +1,7 @@
 import EventEmitter from "events";
 import { ModbusSocket } from "./socket.js";
 import { ModbusQueue } from "./queue.js";
-import { buildReadPacket, buildWriteSingle, buildWriteMulti } from "./packet.js";
+import { buildReadPacket, buildWriteSingle, buildWriteMultiHolding, buildWriteMutilCoil } from "./packet.js";
 import { parseResponse } from "./parser.js";
 import { buildChunks } from "./chunk.js";
 import { diffRegisters } from "./cache.js";
@@ -74,29 +74,20 @@ export class ModbusClient extends EventEmitter {
     return true;
   }
 
-  //[15][16] multiple coil, holding register
-  async writeMulti(unitId, fc, start, values) {
-    if (fc == 15) {
-      values = packCoils(values);
-    }
+  //[16]
+  async writeMultiHolding(unitId, start, values) {
+    const { tx, buf } = buildWriteMultiHolding(unitId, start, values);
+    await this.queue.enqueue(tx, buf, 'high');
+    return true;
+  }
 
-    const { tx, buf } = buildWriteMulti(unitId, fc, start, values);
+  // [15]
+  async writeMultiCoil(unitId, start, values) {
+    const { tx, buf } = buildWriteMutilCoil(unitId, start, values);
     await this.queue.enqueue(tx, buf, 'high');
     return true;
   }
 }
 
-function packCoils(values) {
-  const byteCount = Math.ceil(values.length / 8);
-  const buf = Buffer.alloc(byteCount);
-
-  values.forEach((v, i) => {
-    if (v) {
-      buf[Math.floor(i / 8)] |= 1 << (i % 8);
-    }
-  });
-
-  return buf;
-}
 
 

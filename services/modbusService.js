@@ -111,10 +111,8 @@ export async function writeModbus(payload) {
   if (!manager || !manager.running) {
     throw new Error("Modbus is not running");
   }
-
   const { ip, unitId, fc } = payload;
   const address = payload.address ?? payload.start;
-
 
   const device = manager.devices.get(ip);
   if (!device) {
@@ -146,21 +144,19 @@ export async function writeModbus(payload) {
 
     // Write Multiple Coil
     case 15:
-      await client.writeMulti(
+      await client.writeMultiCoil(
         unitId,
-        15,
         address,
-        payload.values
+        payload.value.map((i) => i ? 1 : 0)
       );
       break;
 
     // Write Multiple Holding Registers
     case 16:
-      await client.writeMulti(
+      await client.writeMultiHolding(
         unitId,
-        16,
         address,
-        payload.values.map(Number)
+        payload.value.map(Number)
       );
       break;
 

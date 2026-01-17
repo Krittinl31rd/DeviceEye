@@ -74,9 +74,15 @@ export class DeviceManager {
   stopAll() {
     if (!this.running) return;
 
-    this.devices.forEach(d => d.scheduler.stop());
+    this.devices.forEach(d => {
+      d.scheduler.stop()
+      d.client?.disconnect?.();
+    });
+
     this.status.clear();
     this.running = false;
+
+    this.socket?.disconnect?.();
 
     console.log("[MODBUS] STOP");
   }

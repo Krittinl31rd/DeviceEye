@@ -35,7 +35,7 @@ export function buildWriteSingle(unitId, fc, addr, value) {
     return { tx, buf };
 }
 
-export function buildWriteMulti(unitId, fc, start, values) {
+export function buildWriteMultiHolding(unitId, start, values) {
     const tx = nextTxId();
     const qty = values.length;
     const byteCount = qty * 2;
@@ -46,7 +46,7 @@ export function buildWriteMulti(unitId, fc, start, values) {
     buf.writeUInt16BE(0, 2);
     buf.writeUInt16BE(7 + byteCount, 4);
     buf.writeUInt8(unitId, 6);
-    buf.writeUInt8(fc, 7);           // FC
+    buf.writeUInt8(16, 7);
     buf.writeUInt16BE(start, 8);
     buf.writeUInt16BE(qty, 10);
     buf.writeUInt8(byteCount, 12);
@@ -54,6 +54,34 @@ export function buildWriteMulti(unitId, fc, start, values) {
     values.forEach((v, i) => {
         buf.writeUInt16BE(v, 13 + i * 2);
     });
+
+    return { tx, buf };
+}
+
+export function buildWriteMutilCoil(unitId, start, values) {
+    const tx = nextTxId();
+    const qty = values.length;
+
+    const byteCount = Math.ceil(qty / 8);
+
+    const buf = Buffer.alloc(13 + byteCount);
+
+    buf.writeUInt16BE(tx, 0);      // Transaction ID
+    buf.writeUInt16BE(0, 2);       // Protocol ID
+    buf.writeUInt16BE(7 + byteCount, 4); // Length
+    buf.writeUInt8(unitId, 6);    // Unit ID
+    buf.writeUInt8(15, 7);        // FC15
+    buf.writeUInt16BE(start, 8);  // Start address
+    buf.writeUInt16BE(qty, 10);   // Quantity
+    buf.writeUInt8(byteCount, 12);
+
+    for (let i = 0; i < qty; i++) {
+        if (values[i]) {
+            const byteIndex = Math.floor(i / 8);
+            const bitIndex = i % 8;
+            buf[13 + byteIndex] |= 1 << bitIndex;
+        }
+    }
 
     return { tx, buf };
 }

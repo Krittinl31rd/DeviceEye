@@ -1,2 +1,4 @@
 /node_modules
 /renderer/node_modules
+/renderer/dist
+/release

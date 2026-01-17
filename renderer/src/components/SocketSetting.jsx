@@ -30,7 +30,7 @@ export default function SocketSetting({ modbusRunning, cfg, setCfg }) {
 
       {/* Token */}
       <div>
-        <label className="block text-sm">Token / API Key</label>
+        <label className="block text-sm">Token</label>
         <input
           className="w-full border p-2 rounded"
           disabled={disabled}

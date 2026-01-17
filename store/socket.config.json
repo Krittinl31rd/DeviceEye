@@ -1,5 +1,5 @@
 {
   "url": "http://localhost:3000",
-  "token": "",
+  "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwicm9sZSI6Ik1vZGJ1cyIsImlhdCI6MTc2ODYyNDM2NH0.U9DroWaRadD6dxVIal2I-0kHAeYn_Tbesfa8htPfcns",
   "enabled": true
 }
