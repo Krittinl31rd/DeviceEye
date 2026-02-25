@@ -1,21 +1,15 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { HashRouter , Routes, Route } from "react-router-dom";
 import "./index.css";
 import Home from "../src/pages/Home";
 import { Toaster } from "sonner";
 
 ReactDOM.createRoot(document.getElementById("root")).render(
-  <BrowserRouter>
+  <HashRouter >
     <Routes>
-      {/* <Route path="/" element={<MainLayout />}>
-        <Route index element={<Home />} />
-        <Route path="/project/:id" element={<Dashboard />} />
-      </Route> */}
       <Route path="/" element={<Home />} />
-
-      {/* <Route path="*" element={<NotFound />} /> */}
     </Routes>
     <Toaster richColors closeButton position="top-right" />
-  </BrowserRouter>
+  </HashRouter >
 );

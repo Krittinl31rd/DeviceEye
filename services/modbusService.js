@@ -1,19 +1,76 @@
-import { DeviceManager } from "../backend/modbus/deviceManager.js";
-import { addConfig, loadConfig, removeConfig, updateConfig } from "../store/configStore.js";
-import { OutboundSocket } from "./socketClient.js";
-import { loadSocketConfig } from "../store/socketConfig.js";
+import path from "path";
+import { fileURLToPath, pathToFileURL } from "url";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+import { app } from "electron";
+
+const isDev = !app.isPackaged;
+
+function resolvePath(relativePath) {
+  return isDev
+    ? path.join(__dirname, "..", relativePath)
+    : path.join(process.resourcesPath, relativePath);
+}
+
+/* ================= dynamic deps ================= */
+
+let DeviceManager;
+let OutboundSocket;
+let configStore;
+let socketStore;
+
+async function loadDeps() {
+  if (!DeviceManager) {
+    ({ DeviceManager } = await import(
+      pathToFileURL(
+        resolvePath("backend/modbus/deviceManager.js")
+      ).href
+    ));
+  }
+
+  if (!OutboundSocket) {
+    ({ OutboundSocket } = await import(
+      pathToFileURL(
+        resolvePath("services/socketClient.js")
+      ).href
+    ));
+  }
+
+  if (!configStore) {
+    configStore = await import(
+      pathToFileURL(
+        resolvePath("store/configStore.js")
+      ).href
+    );
+  }
+
+  if (!socketStore) {
+    socketStore = await import(
+      pathToFileURL(
+        resolvePath("store/socketConfig.js")
+      ).href
+    );
+  }
+}
+
+/* ================= runtime ================= */
 
 let manager = null;
 let outbound = null;
 
-function ensureManager(mainWindow) {
+async function ensureManager(mainWindow) {
+  await loadDeps();
+
   if (!outbound) {
     outbound = new OutboundSocket({
       onStatus: status => {
         mainWindow.webContents.send("socket:status", status);
       }
     });
-    outbound.connect(loadSocketConfig());
+
+    outbound.connect(socketStore.loadSocketConfig());
   }
 
   if (!manager) {
@@ -27,22 +84,24 @@ function ensureManager(mainWindow) {
       }
     });
   }
-
 }
 
-export function startModbus(mainWindow) {
-  ensureManager(mainWindow);
+/* ================= API ================= */
+
+export async function startModbus(mainWindow) {
+  await ensureManager(mainWindow);
 
   if (manager.running) {
-    return { running: manager?.running, status: "already_running" };
+    return { running: manager.running, status: "already_running" };
   }
 
-  outbound?.connect(loadSocketConfig());
+  outbound.connect(socketStore.loadSocketConfig());
 
-  manager.loadDevices(loadConfig().devices);
+  const cfg = configStore.loadConfig();
+  manager.loadDevices(cfg.devices);
   manager.startAll();
 
-  return { running: manager?.running, status: "started" };
+  return { running: manager.running, status: "started" };
 }
 
 export function stopModbus() {
@@ -51,7 +110,7 @@ export function stopModbus() {
   }
 
   manager.stopAll();
-  return { running: manager?.running, status: "stopped" };
+  return { running: manager.running, status: "stopped" };
 }
 
 export function stopSocket() {
@@ -59,9 +118,9 @@ export function stopSocket() {
   outbound = null;
 }
 
+export async function addModbus(device) {
+  await loadDeps();
 
-
-export function addModbus(device) {
   if (manager?.running) {
     return {
       running: manager.running,
@@ -70,13 +129,17 @@ export function addModbus(device) {
     };
   }
 
-  const isSuccess = addConfig(device);
-  if (!isSuccess) return { status: "warning", message: "this device is already" };
+  const ok = configStore.addConfig(device);
+  if (!ok) {
+    return { status: "warning", message: "this device already exists" };
+  }
 
   return { status: "saved", message: "adding device success" };
 }
 
-export function removeModbus(ip) {
+export async function removeModbus(ip) {
+  await loadDeps();
+
   if (manager?.running) {
     return {
       running: manager.running,
@@ -85,13 +148,17 @@ export function removeModbus(ip) {
     };
   }
 
-  const isSuccess = removeConfig(ip);
-  if (!isSuccess) return { status: "warning", message: "not found device this ip" };
+  const ok = configStore.removeConfig(ip);
+  if (!ok) {
+    return { status: "warning", message: "device not found" };
+  }
 
   return { status: "saved", message: "deleting device success" };
 }
 
-export function updateModbus(device) {
+export async function updateModbus(device) {
+  await loadDeps();
+
   if (manager?.running) {
     return {
       status: "blocked",
@@ -99,18 +166,19 @@ export function updateModbus(device) {
     };
   }
 
-  const isSuccess = updateConfig(device);
-  if (!isSuccess) return { status: "warning", message: "not found device this ip" };
+  const ok = configStore.updateConfig(device);
+  if (!ok) {
+    return { status: "warning", message: "device not found" };
+  }
 
   return { status: "saved", message: "updating device success" };
 }
 
-
 export async function writeModbus(payload) {
-
   if (!manager || !manager.running) {
     throw new Error("Modbus is not running");
   }
+
   const { ip, unitId, fc } = payload;
   const address = payload.address ?? payload.start;
 
@@ -122,36 +190,22 @@ export async function writeModbus(payload) {
   const client = device.client;
 
   switch (fc) {
-    // Write Single Coil
     case 5:
-      await client.writeSingle(
-        unitId,
-        5,
-        address,
-        payload.value ? 1 : 0
-      );
+      await client.writeSingle(unitId, 5, address, payload.value ? 1 : 0);
       break;
 
-    // Write Single Holding Register
     case 6:
-      await client.writeSingle(
-        unitId,
-        6,
-        address,
-        Number(payload.value)
-      );
+      await client.writeSingle(unitId, 6, address, Number(payload.value));
       break;
 
-    // Write Multiple Coil
     case 15:
       await client.writeMultiCoil(
         unitId,
         address,
-        payload.value.map((i) => i ? 1 : 0)
+        payload.value.map(v => (v ? 1 : 0))
       );
       break;
 
-    // Write Multiple Holding Registers
     case 16:
       await client.writeMultiHolding(
         unitId,
@@ -164,5 +218,9 @@ export async function writeModbus(payload) {
       throw new Error(`FC ${fc} is not writable`);
   }
 
-  return { success: true, status: "ok", message: `Write ID ${unitId} | FC ${fc} | Addr ${payload.address} | Value ${payload.value}` };
+  return {
+    success: true,
+    status: "ok",
+    message: `Write ID ${unitId} | FC ${fc} | Addr ${address} = ${payload?.value}`
+  };
 }

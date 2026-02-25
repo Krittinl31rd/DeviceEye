@@ -45,7 +45,10 @@ export class DeviceManager {
                 unitId: tag.unitId,
                 fc: tag.fc,
                 start: tag.start,
-                data,
+                data: data.map(d => ({
+                  address: Number(d.address),
+                  value: Number(d.value),
+                })),
                 ts
               }
               this.onChange?.(payload);
