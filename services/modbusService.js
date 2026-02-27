@@ -78,6 +78,7 @@ async function ensureManager(mainWindow) {
       socket: outbound,
       onChange: changes => {
         mainWindow.webContents.send("modbus:change", changes);
+
       },
       onStatus: status => {
         mainWindow.webContents.send("modbus:status", status);

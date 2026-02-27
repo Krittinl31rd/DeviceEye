@@ -31,7 +31,7 @@ const CardDevices = ({
       return unitData[fc][address];
     }
     const fallbackFC = Object.values(unitData).find(
-      (d) => d?.[address] !== undefined
+      (d) => d?.[address] !== undefined,
     );
     return fallbackFC?.[address] ?? "--";
   };
@@ -99,14 +99,14 @@ const CardDevices = ({
 
     const fcList = [
       ...new Set(
-        device.tags.filter((t) => t.unitId === activeUnit).map((t) => t.fc)
+        device.tags.filter((t) => t.unitId === activeUnit).map((t) => t.fc),
       ),
     ];
 
     const activeFC = fcView[dIdx]?.[activeUnit] ?? fcList[0];
 
     const unitTags = device.tags.filter(
-      (t) => t.unitId == activeUnit && t.fc == activeFC
+      (t) => t.unitId == activeUnit && t.fc == activeFC,
     );
 
     const isOffline = deviceStatus[device.ip]?.state != "CONNECTED";
@@ -114,43 +114,52 @@ const CardDevices = ({
     return (
       <div
         key={device.ip}
-        className="card bg-base-300 p-2 shadow-2xl space-y-2"
+        className="bg-base-200 rounded-2xl p-4 shadow-xl border border-base-300 space-y-4 transition hover:shadow-2xl"
       >
         {/* ================= HEADER ================= */}
-        <div className="flex justify-between items-center mb-1">
-          <h2 className="font-semibold flex items-center gap-2">
-            {device.ip}:{device.port}
+        <div className="flex justify-between items-start">
+          <div>
+            <h2 className="text-lg font-bold">
+              {device.ip}:{device.port}
+            </h2>
+
             {deviceStatus[device.ip] && (
-              <span
-                className={`text-xs ${
-                  STATUS_COLOR[deviceStatus[device.ip].state]
-                }`}
-              >
-                ● {STATUS_LABEL[deviceStatus[device.ip].state]}
-              </span>
+              <div className="mt-1 text-sm flex items-center gap-2">
+                <span
+                  className={`badge badge-sm ${
+                    STATUS_COLOR[deviceStatus[device.ip].state]
+                  }`}
+                >
+                  {STATUS_LABEL[deviceStatus[device.ip].state]}
+                </span>
+              </div>
             )}
-          </h2>
+          </div>
 
           <div className="flex gap-2">
             <button
               disabled={running}
-              className="btn btn-xs btn-warning"
+              className="btn btn-sm btn-outline btn-warning"
               onClick={() => {
-                setSelectDevice(structuredClone(device));
+                setSelectDevice({
+                  ...structuredClone(device),
+                  _originalIp: device.ip,
+                });
                 setUpdateDevice(true);
               }}
             >
-              <PencilLine size={14} />
+              <PencilLine size={16} />
             </button>
+
             <button
               disabled={running}
-              className="btn btn-xs btn-error"
+              className="btn btn-sm btn-outline btn-error"
               onClick={() => {
                 setSelectDevice(device);
                 setDelDevice(true);
               }}
             >
-              <Trash2 size={14} />
+              <Trash2 size={16} />
             </button>
           </div>
         </div>
@@ -159,13 +168,16 @@ const CardDevices = ({
         <div className="flex gap-3 text-sm">
           {unitIds.map((uid) => (
             <label key={uid} className="flex gap-1 cursor-pointer">
-              <input
-                type="radio"
-                className="radio radio-xs"
-                checked={activeUnit === uid}
-                onChange={() => setUnitView((v) => ({ ...v, [dIdx]: uid }))}
-              />
-              ID {uid}
+              <button
+                className={`px-3 py-1 rounded-full text-sm transition ${
+                  activeUnit === uid
+                    ? "bg-primary text-white"
+                    : "bg-base-100 hover:bg-base-300"
+                }`}
+                onClick={() => setUnitView((v) => ({ ...v, [dIdx]: uid }))}
+              >
+                ID {uid}
+              </button>
             </label>
           ))}
         </div>
@@ -185,54 +197,80 @@ const CardDevices = ({
                   }))
                 }
               />
-              FC {fc} ({FC_LIST.find((f) => f.id === fc)?.label})
+              FC {fc} ({FC_LIST.find((f) => f.id == fc)?.label})
             </label>
           ))}
         </div>
 
         {/* ================= TABLE ================= */}
-        <div className={`bg-base-200 rounded ${isOffline && "opacity-40"}`}>
+        <div className="relative bg-base-200 rounded">
+          {isOffline && (
+            <div className="absolute inset-0 bg-base-100/60 backdrop-blur-sm flex items-center justify-center rounded-xl">
+              <span className="text-error font-semibold">Device Offline</span>
+            </div>
+          )}
           <div className="px-3 py-1 text-xs font-semibold bg-base-300">
             Unit {activeUnit} | FC {activeFC} – {FC_NAME[activeFC]}
           </div>
 
-          <div className="text-xs font-mono max-h-56 overflow-auto space-y-0.5">
-            <div className="grid grid-cols-2 px-4 py-2 text-gray-500 sticky top-0 bg-base-100">
-              <span>Addr</span>
-              <span className="text-center">Value</span>
-            </div>
-            {unitTags.flatMap((tag) =>
-              Array.from({ length: tag.length }).map((_, i) => {
-                const addr = Number(tag.start) + i;
-                const value = getRuntimeValue(
-                  device.ip,
-                  activeUnit,
-                  activeFC,
-                  addr
+          <div className="max-h-[500px] overflow-auto">
+            <div className="min-w-max text-xs font-mono p-2">
+              {unitTags.map((tag) => {
+                const addresses = Array.from({ length: tag.length }).map(
+                  (_, i) => Number(tag.start) + i,
                 );
-                const isEven = i % 2 == 0;
+
+                const ROWS = 5;
+                const cols = Math.ceil(addresses.length / ROWS);
+
                 return (
                   <div
-                    key={`${tag.unitId}-${tag.fc}-${addr}`}
-                    className={`grid grid-cols-2 px-4 py-2 odd:bg-base-200 cursor-pointer ${
-                      isEven ? "bg-base-200" : "bg-base-100"
-                    } hover:bg-primary/10 transition`}
-                    onClick={() =>
-                      handleWriteOpen({
-                        device,
-                        unitId: activeUnit,
-                        fc: activeFC,
-                        address: addr,
-                        value,
-                      })
-                    }
+                    key={`${tag.unitId}-${tag.fc}`}
+                    className="grid gap-2"
+                    style={{
+                      gridTemplateRows: `repeat(${ROWS}, auto)`,
+                      gridTemplateColumns: `repeat(${cols}, 90px)`,
+                      gridAutoFlow: "column",
+                    }}
                   >
-                    <span>{addr}</span>
-                    <span className="text-blue-400 text-center ">{value}</span>
+                    {addresses.map((addr) => {
+                      const value = getRuntimeValue(
+                        device.ip,
+                        activeUnit,
+                        activeFC,
+                        addr,
+                      );
+
+                      return (
+                        <div
+                          key={addr}
+                          className="overflow-x-auto group bg-base-100 hover:bg-primary/5 border border-base-300 rounded-xl p-3 text-center cursor-pointer transition-all duration-200 hover:shadow-md"
+                          onClick={() =>
+                            handleWriteOpen({
+                              device,
+                              unitId: activeUnit,
+                              fc: activeFC,
+                              address: addr,
+                              value,
+                            })
+                          }
+                        >
+                          {/* ADDRESS */}
+                          <div className="text-[11px] font-medium text-white tracking-wide">
+                            {addr.toString().padStart(4, "0")}
+                          </div>
+
+                          {/* VALUE */}
+                          <div className="text-lg font-bold text-primary mt-1 tabular-nums">
+                            {value}
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
                 );
-              })
-            )}
+              })}
+            </div>
           </div>
         </div>
 

@@ -27,7 +27,10 @@ const Home = () => {
     ],
   });
   const [configScoket, setConfigScoket] = useState(false);
-  const [statusSocket, setStatusSocket] = useState({ state: "disconnected", url: "" });
+  const [statusSocket, setStatusSocket] = useState({
+    state: "disconnected",
+    url: "",
+  });
   const [cfg, setCfg] = useState({
     enabled: false,
     url: "",
@@ -124,58 +127,95 @@ const Home = () => {
 
   return (
     <div className="min-h-screen  flex flex-col items-start justify-start p-4 space-y-4">
-      {/* header */}
-      <div className="w-full flex items-center justify-end gap-2">
-        <label className="label">Polling:</label>
-        <div
-          className={`badge badge-soft font-semibold ${
-            running ? "badge-success" : "badge-error"
+      <div className="w-full bg-base-200 rounded-2xl shadow-md border border-base-300 p-4 space-y-4">
+        {/* ===== STATUS ROW ===== */}
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          {/* Polling Status */}
+          <div className="flex items-center gap-3">
+            <div className="text-sm font-semibold opacity-70">Polling</div>
+
+            <div
+              className={`flex items-center gap-2 px-3 py-1 rounded-full text-sm font-semibold
+          ${running ? "bg-success/20 text-success" : "bg-error/20 text-error"}`}
+            >
+              <span
+                className={`w-2 h-2 rounded-full ${
+                  running ? "bg-success animate-pulse" : "bg-error"
+                }`}
+              />
+              {running ? "Running" : "Stopped"}
+            </div>
+          </div>
+
+          {/* Socket Status */}
+          <div className="flex items-center gap-3">
+            <div className="text-sm font-semibold opacity-70">Socket</div>
+
+            <div
+              className={`flex items-center gap-2 px-3 py-1 rounded-full text-sm font-semibold
+          ${
+            statusSocket.state === "connected"
+              ? "bg-success/20 text-success"
+              : "bg-error/20 text-error"
           }`}
-        >
-          {running ? "Running" : "Stopped"}
-        </div>
-        <button
-          disabled={running}
-          onClick={startModbus}
-          className="btn btn-sm btn-success"
-        >
-          <Play className="w-4 h-4" /> Start
-        </button>
-        <button
-          disabled={!running}
-          onClick={stopAllModbus}
-          className="btn btn-sm btn-error"
-        >
-          <Pause className="w-4 h4-" /> Stop
-        </button>
-        <button
-          disabled={running}
-          onClick={() => setAddDevice(true)}
-          className="btn btn-sm btn-primary"
-        >
-          <Plus className="w-4 h-4" /> Add Device
-        </button>
-      </div>
-      <div className="w-full flex items-center justify-end gap-2">
-        <label className="label">Socket {statusSocket.url} :</label>
-        <div
-          className={`badge badge-soft font-semibold ${
-            statusSocket.state == "connected" ? "badge-success" : "badge-error"
-          }`}
-        >
-          {statusSocket.state}
+            >
+              <span
+                className={`w-2 h-2 rounded-full ${
+                  statusSocket.state === "connected"
+                    ? "bg-success animate-pulse"
+                    : "bg-error"
+                }`}
+              />
+              {statusSocket.state}
+            </div>
+
+            <div className="text-xs opacity-50">{statusSocket.url}</div>
+          </div>
         </div>
 
-        <button
-          disabled={running}
-          onClick={() => setConfigScoket(true)}
-          className="btn btn-sm btn-neutral"
-        >
-          <EllipsisVertical className="w-4 h-4" /> Socket
-        </button>
+        {/* ===== ACTION ROW ===== */}
+        <div className="flex flex-wrap items-center gap-3">
+          <button
+            disabled={running}
+            onClick={startModbus}
+            className="btn btn-sm btn-success gap-2"
+          >
+            <Play className="w-4 h-4" />
+            Start
+          </button>
+
+          <button
+            disabled={!running}
+            onClick={stopAllModbus}
+            className="btn btn-sm btn-error gap-2"
+          >
+            <Pause className="w-4 h-4" />
+            Stop
+          </button>
+
+          <div className="divider divider-horizontal hidden md:flex" />
+
+          <button
+            disabled={running}
+            onClick={() => setAddDevice(true)}
+            className="btn btn-sm btn-primary gap-2"
+          >
+            <Plus className="w-4 h-4" />
+            Add Device
+          </button>
+
+          <button
+            disabled={running}
+            onClick={() => setConfigScoket(true)}
+            className="btn btn-sm btn-outline gap-2"
+          >
+            <EllipsisVertical className="w-4 h-4" />
+            Socket Settings
+          </button>
+        </div>
       </div>
       {/* device */}
-      <div className="w-full grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-4">
+      <div className="w-full grid grid-cols-1 xl:grid-cols-2  gap-4">
         <CardDevices
           running={running}
           devices={devices}

@@ -53,6 +53,7 @@ export class ModbusClient extends EventEmitter {
   }
 
   async readDelta(ip, unitId, fc, start, length, chunkSize = 50) {
+
     const buffer = await this.readChunk(
       unitId,
       fc,
@@ -86,6 +87,15 @@ export class ModbusClient extends EventEmitter {
     const { tx, buf } = buildWriteMutilCoil(unitId, start, values);
     await this.queue.enqueue(tx, buf, 'high');
     return true;
+  }
+
+
+  enableReconnect(flag) {
+    this.socket.allowReconnect = flag;
+  }
+
+  disconnect() {
+    this.socket.disconnect();
   }
 }
 

@@ -71,12 +71,18 @@ export function removeConfig(ip) {
 export function updateConfig(data) {
   const config = loadConfig();
 
-  const index = config.devices.findIndex(dev => dev.ip === data.ip);
-  if (index === -1) return false;
+  const index = config.devices.findIndex(
+    dev => dev.ip == data._originalIp
+  );
+
+  if (index == -1) return false;
+
+  const updated = { ...data };
+  delete updated._originalIp;
 
   config.devices[index] = {
     ...config.devices[index],
-    ...data,
+    ...updated,
   };
 
   saveConfig(config);

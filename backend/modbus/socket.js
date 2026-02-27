@@ -9,6 +9,7 @@ export class ModbusSocket extends EventEmitter {
     this.socket = null;
     this.state = 'IDLE'; // IDLE | CONNECTING | CONNECTED
     this.retryMs = 2000;
+    this.allowReconnect = true;
   }
 
   connect() {
@@ -40,11 +41,19 @@ export class ModbusSocket extends EventEmitter {
     });
   }
 
+  // handleDisconnect(reason) {
+  //   this.state = 'ERROR';
+  //   this.emit('state', this.state, reason);
+  //   this.cleanup();
+  //   this.scheduleReconnect();
+  // }
   handleDisconnect(reason) {
-    this.state = 'ERROR';
-    this.emit('state', this.state, reason);
+    this.emit('state', 'ERROR', reason);
     this.cleanup();
-    this.scheduleReconnect();
+
+    if (this.allowReconnect) {
+      this.scheduleReconnect();
+    }
   }
 
   cleanup() {
@@ -64,5 +73,10 @@ export class ModbusSocket extends EventEmitter {
     if (this.state == 'CONNECTED') {
       this.socket.write(buffer);
     }
+  }
+
+  disconnect() {
+    this.allowReconnect = false;
+    this.cleanup();
   }
 }
