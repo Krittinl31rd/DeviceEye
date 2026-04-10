@@ -12,6 +12,9 @@ const WirteRegister = ({ data, onConfirm }) => {
 
   const isBool = data.readFc == 1;
   const canWrite = data.readFc == 1 || data.readFc == 3;
+  const [isWrite, setIsWrite] = useState(
+    data.readFc == 1 ? 5 : data.readFc == 3 && 15,
+  );
 
   return (
     <div className="space-y-3">
@@ -31,27 +34,53 @@ const WirteRegister = ({ data, onConfirm }) => {
       )}
 
       {canWrite && (
-        <div className="flex items-center gap-3">
-          <label className="text-sm font-semibold">Value</label>
+        <>
+          <div className="flex  items-center justify-start gap-2 text-xs">
+            <input
+              type="radio"
+              id="single"
+              name="single"
+              className="radio radio-sm"
+              checked={isWrite}
+            />
+            <label htmlFor="single" className="label">
+              Single
+            </label>
+            <input
+              type="radio"
+              id="multi"
+              name="multi"
+              className="radio radio-sm"
+            />
+            <label htmlFor="multi" className="label">
+              Multi
+            </label>
+          </div>
 
-          {isBool ? (
-            <input
-              type="checkbox"
-              className="toggle toggle-success"
-              checked={Boolean(data.value)}
-              onChange={(e) => onConfirm({ ...data, value: e.target.checked })}
-            />
-          ) : (
-            <input
-              type="number"
-              className="input input-bordered w-full"
-              value={data.value}
-              onChange={(e) =>
-                onConfirm({ ...data, value: Number(e.target.value) })
-              }
-            />
-          )}
-        </div>
+          <div className="flex items-center gap-3">
+            <label className="text-sm font-semibold">Value</label>
+
+            {isBool ? (
+              <input
+                type="checkbox"
+                className="toggle toggle-success"
+                checked={Boolean(data.value)}
+                onChange={(e) =>
+                  onConfirm({ ...data, value: e.target.checked })
+                }
+              />
+            ) : (
+              <input
+                type="number"
+                className="input input-bordered w-full"
+                value={data.value}
+                onChange={(e) =>
+                  onConfirm({ ...data, value: Number(e.target.value) })
+                }
+              />
+            )}
+          </div>
+        </>
       )}
     </div>
   );

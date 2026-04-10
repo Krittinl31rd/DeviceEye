@@ -21,7 +21,7 @@ export class PollingScheduler {
     this.tags = this.tags.filter(t => t.id !== id);
   }
 
-  start(interval = 500) {
+  start(interval = 1000) {
     console.log('[SCHEDULER] START', this.ip);
     if (this.timer) return;
 
